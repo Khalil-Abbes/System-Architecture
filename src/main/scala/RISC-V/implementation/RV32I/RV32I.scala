@@ -49,6 +49,12 @@ class RV32I (
     is(NEXT_PC_SELECT.BRANCH) {
       io_pc.pc_wdata := Mux(branch_unit.io_branch.branch_taken, io_pc.pc + decoder.io_decoder.imm, (io_pc.pc + 4.U))
     }
+    is (NEXT_PC_SELECT.IMM) {
+      io_pc.pc_wdata := decoder.io_decoder.imm + io_pc.pc
+    }
+    is (NEXT_PC_SELECT.ALU_OUT_ALIGNED) {
+      io_pc.pc_wdata := alu.io_alu.result & "hfffffffe".U
+    }
   }
   io_pc.pc_we := control_unit.io_ctrl.stall === STALL_REASON.NO_STALL
 
@@ -59,16 +65,64 @@ class RV32I (
   io_reg.reg_write_en := control_unit.io_ctrl.reg_we
   io_reg.reg_write_data := 0.U
   switch(control_unit.io_ctrl.reg_write_sel) {
-    is(REG_WRITE_SEL.ALU_OUT) {
-      io_reg.reg_write_data := alu.io_alu.result
+  is(REG_WRITE_SEL.ALU_OUT) {
+    io_reg.reg_write_data := alu.io_alu.result
+  }
+  is(REG_WRITE_SEL.IMM) {
+    io_reg.reg_write_data := decoder.io_decoder.imm
+  }
+  is(REG_WRITE_SEL.PC_PLUS_4) {
+    io_reg.reg_write_data := io_pc.pc + 4.U
+  }
+ is(REG_WRITE_SEL.MEM_OUT_SIGN_EXTENDED) {
+  // Adjust the width based on the data bus width and the actual data fetched
+  switch(control_unit.io_ctrl.data_be) {
+    is("b0001".U) { // Byte
+      io_reg.reg_write_data :=  Fill(24, io_data.data_rdata(7)) ## io_data.data_rdata(7, 0)
+
+    //  printf(s"Sign-extended byte: %d\n", io_reg.reg_write_data)
+    //  printf(s"ALU result: %d\n", alu.io_alu.result)
     }
-    is(REG_WRITE_SEL.IMM) {
-      io_reg.reg_write_data := decoder.io_decoder.imm
+    is("b0011".U) { // Half-word
+      io_reg.reg_write_data :=  Fill(16, io_data.data_rdata(15)) ## io_data.data_rdata(15, 0)
+
+    //  printf(s"Sign-extended half-word: %d\n", io_reg.reg_write_data)
+    //  printf(s"ALU result: %d\n", alu.io_alu.result)
     }
-    is(REG_WRITE_SEL.PC_PLUS_4) {
-      io_reg.reg_write_data := io_pc.pc + 4.U
+    is("b1111".U) { // Word
+      io_reg.reg_write_data := io_data.data_rdata
+      //printf(s"Sign-extended word: %d\n", io_data.data_rdata)
+     // printf(s"ALU result: %d\n", alu.io_alu.result)
     }
   }
+}
+
+is(REG_WRITE_SEL.MEM_OUT_ZERO_EXTENDED) {
+  // Zero-extension is simpler since it doesn't consider sign bits.
+  switch(control_unit.io_ctrl.data_be) {
+    is("b0001".U) { // Byte
+      io_reg.reg_write_data := io_data.data_rdata(7, 0)
+     // printf(s"Zero-extended byte: %d\n", io_reg.reg_write_data)
+    //  printf(s"ALU result: %d\n", alu.io_alu.result)
+    }
+    is("b0011".U) { // Half-word
+      io_reg.reg_write_data := io_data.data_rdata(15, 0)
+     // printf(s"Zero-extended half-word: %d\n", io_reg.reg_write_data)
+     // printf(s"ALU result: %d\n", alu.io_alu.result)
+    }
+    is("b1111".U) { // Word
+      io_reg.reg_write_data :=  io_data.data_rdata
+    //  printf(s"Zero-extended word: %d\n", io_reg.reg_write_data)
+    //  printf(s"ALU result: %d\n", alu.io_alu.result)
+    }
+  }
+}
+
+
+}
+
+
+
   
   // Assign the control unit inputs
   control_unit.io_ctrl.instr_type := decoder.io_decoder.instr_type
@@ -94,6 +148,10 @@ class RV32I (
     }
   }
   alu.io_alu.alu_op := control_unit.io_ctrl.alu_control
+
+//   when(control_unit.io_ctrl.data_req) {
+//   printf(s"ALU computed address: %x, Data requested: %x, Data from memory: %x\n", alu.io_alu.result, io_data.data_req, io_data.data_rdata)
+// }
 
   // Let the branch unit decide if we need to take a branch based on the ALU result and the instruction type
   branch_unit.io_branch.instr_type := decoder.io_decoder.instr_type

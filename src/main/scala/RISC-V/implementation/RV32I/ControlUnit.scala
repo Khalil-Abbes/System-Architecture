@@ -26,12 +26,47 @@ class ControlUnit extends AbstractControlUnit {
   io_ctrl.data_req := false.B
   io_ctrl.data_we := false.B
   io_ctrl.data_be := 0.U
-
   io_ctrl.next_pc_select := NEXT_PC_SELECT.PC_PLUS_4
 
-  when(was_stalled === STALL_REASON.EXECUTION_UNIT) {
+   when(was_stalled === STALL_REASON.EXECUTION_UNIT) {
     when(io_ctrl.data_gnt) {
       stalled := STALL_REASON.NO_STALL
+      when (RISCV_TYPE.getOP(io_ctrl.instr_type) === RISCV_OP.LOAD) {
+        //io_ctrl.reg_we := true.B
+        io_ctrl.alu_control := ALU_CONTROL.ADD
+        io_ctrl.alu_op_1_sel := ALU_OP_1_SEL.RS1
+        io_ctrl.alu_op_2_sel := ALU_OP_2_SEL.IMM
+        //io_ctrl.data_req := true.B
+        //io_ctrl.data_we := false.B
+        io_ctrl.next_pc_select := NEXT_PC_SELECT.PC_PLUS_4
+        io_ctrl.reg_we := true.B
+
+    
+  // Specific settings based on the type of load (size and signedness)
+  switch (RISCV_TYPE.getFunct3(io_ctrl.instr_type)) {
+    is (RISCV_FUNCT3.F010) { // lw
+      io_ctrl.reg_write_sel := REG_WRITE_SEL.MEM_OUT_SIGN_EXTENDED
+      io_ctrl.data_be := "b1111".U // All bits enabled for a word
+    }
+    is (RISCV_FUNCT3.F000) { // lb
+      io_ctrl.reg_write_sel := REG_WRITE_SEL.MEM_OUT_SIGN_EXTENDED
+      io_ctrl.data_be := "b0001".U // Lower byte
+    }
+    is (RISCV_FUNCT3.F100) { // lbu
+      io_ctrl.reg_write_sel := REG_WRITE_SEL.MEM_OUT_ZERO_EXTENDED
+      io_ctrl.data_be := "b0001".U // Lower byte
+    }
+    is (RISCV_FUNCT3.F001) { // lh
+      io_ctrl.reg_write_sel := REG_WRITE_SEL.MEM_OUT_SIGN_EXTENDED
+      io_ctrl.data_be := "b0011".U // Lower two bytes
+    }
+    is (RISCV_FUNCT3.F101) { // lhu
+      io_ctrl.reg_write_sel := REG_WRITE_SEL.MEM_OUT_ZERO_EXTENDED
+      io_ctrl.data_be := "b0011".U // Lower two bytes
+    }
+  }
+
+      }
     }
   }.otherwise {
     switch(RISCV_TYPE.getOP(io_ctrl.instr_type)) {
@@ -83,6 +118,62 @@ class ControlUnit extends AbstractControlUnit {
         io_ctrl.data_we := true.B
         io_ctrl.data_be := Fill(2, RISCV_TYPE.getFunct3(io_ctrl.instr_type).asUInt(1)) ## RISCV_TYPE.getFunct3(io_ctrl.instr_type).asUInt(1,0).orR ## 1.U(1.W)
       }
+      is(RISCV_OP.JAL) {
+      stalled := STALL_REASON.NO_STALL
+      io_ctrl.reg_we := true.B
+      io_ctrl.reg_write_sel := REG_WRITE_SEL.PC_PLUS_4
+      io_ctrl.alu_control := ALU_CONTROL.ADD
+      io_ctrl.alu_op_1_sel := ALU_OP_1_SEL.RS1
+      io_ctrl.alu_op_2_sel := ALU_OP_2_SEL.RS2
+      io_ctrl.next_pc_select := NEXT_PC_SELECT.IMM
     }
+    is(RISCV_OP.JALR) {
+      stalled := STALL_REASON.NO_STALL
+      io_ctrl.reg_we := true.B
+      io_ctrl.reg_write_sel := REG_WRITE_SEL.PC_PLUS_4
+      io_ctrl.alu_control := ALU_CONTROL.ADD
+      io_ctrl.alu_op_1_sel := ALU_OP_1_SEL.RS1
+      io_ctrl.alu_op_2_sel := ALU_OP_2_SEL.IMM
+      io_ctrl.next_pc_select := NEXT_PC_SELECT.ALU_OUT_ALIGNED
+    }
+
+    is (RISCV_OP.LOAD) {
+  // Set up common control signals for all load types
+  stalled := STALL_REASON.EXECUTION_UNIT
+  io_ctrl.reg_we := false.B
+  io_ctrl.alu_control := ALU_CONTROL.ADD
+  io_ctrl.alu_op_1_sel := ALU_OP_1_SEL.RS1
+  io_ctrl.alu_op_2_sel := ALU_OP_2_SEL.IMM
+  io_ctrl.data_req := true.B
+  io_ctrl.data_we := false.B
+  io_ctrl.next_pc_select := NEXT_PC_SELECT.PC_PLUS_4
+
+    
+  // Specific settings based on the type of load (size and signedness)
+  switch (RISCV_TYPE.getFunct3(io_ctrl.instr_type)) {
+    is (RISCV_FUNCT3.F010) { // lw
+      io_ctrl.reg_write_sel := REG_WRITE_SEL.MEM_OUT_SIGN_EXTENDED
+      io_ctrl.data_be := "b1111".U // All bits enabled for a word
+    }
+    is (RISCV_FUNCT3.F000) { // lb
+      io_ctrl.reg_write_sel := REG_WRITE_SEL.MEM_OUT_SIGN_EXTENDED
+      io_ctrl.data_be := "b0001".U // Lower byte
+    }
+    is (RISCV_FUNCT3.F100) { // lbu
+      io_ctrl.reg_write_sel := REG_WRITE_SEL.MEM_OUT_ZERO_EXTENDED
+      io_ctrl.data_be := "b0001".U // Lower byte
+    }
+    is (RISCV_FUNCT3.F001) { // lh
+      io_ctrl.reg_write_sel := REG_WRITE_SEL.MEM_OUT_SIGN_EXTENDED
+      io_ctrl.data_be := "b0011".U // Lower two bytes
+    }
+    is (RISCV_FUNCT3.F101) { // lhu
+      io_ctrl.reg_write_sel := REG_WRITE_SEL.MEM_OUT_ZERO_EXTENDED
+      io_ctrl.data_be := "b0011".U // Lower two bytes
+    }
+  }
+}
+}
+
   }
 }
