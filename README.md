@@ -1,1 +1,1 @@
-This project was completed as part of the System Architecture coursework at Saarland University. The foundational skeleton and testing framework were provided by the university staff. My specific task was to design and implement the core logic, which is summarized in the submissions folder.
+This project was completed as part of the System Architecture coursework at Saarland University. The foundational skeleton and testing framework were provided by the university staff. My specific task was to design and implement the core logic.
