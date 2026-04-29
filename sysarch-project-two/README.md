@@ -1,8 +1,5 @@
 # System Programming and Exception Handling
 
-**Course:** System Architecture, Saarland University  
-**Instructor:** Prof. Dr. Jan Reineke
-
 ## Project Context
 This repository contains my student implementations for a system programming project targeting a custom RISC-V simulator. All tasks were written in RISC-V assembly.
 
